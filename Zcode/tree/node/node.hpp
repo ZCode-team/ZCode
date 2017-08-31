@@ -158,9 +158,9 @@ struct Node: public definitions<Dim, Value>
     //! \param N pointer to the Node.
     //! \param V tag value
     //! \note we do not check V.
-    inline void setTags(Node &n) const
+    inline void setTags(const Node &tags) 
     {
-        n.value = ((n.value)&partWithoutFreeBits) + (value&FreeBitsPart);
+        value = ((value)&partWithoutFreeBits) + ((tags.value)&FreeBitsPart);
     }
 
     //! return the hash code for nodes.

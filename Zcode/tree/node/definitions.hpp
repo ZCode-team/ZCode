@@ -59,6 +59,8 @@ struct definitions
     
     // digit used to mark node as void.
     static const value_type voidbit = fifthfreebit;
+    // digit used to mark node as to be refined (refineme bit)
+    static const value_type refineMe = firstfreebit;
     //!mask for extracting all, but the void bit:
     static const value_type AllExceptVoidbit= allone - voidbit;
 
