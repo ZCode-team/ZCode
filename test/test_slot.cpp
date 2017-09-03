@@ -188,9 +188,12 @@ TYPED_TEST(SlotTest, compress)
     }
     slot.put(nodes);
     slot.setMark(node_type::voidbit);
+    
     // remove all odd nodes
+    EXPECT_EQ( slot.size(), 10 );
     slot.compress();
     EXPECT_EQ( slot.size(), 5 );
+
     for (std::size_t i=0; i<5; ++i)
     {
         node_type node{static_cast<value_type>(2*i)};
@@ -446,7 +449,7 @@ TYPED_TEST(SlotTest, cutdown)
     EXPECT_EQ( slot.cutdown(3), false );
 }
 
-TYPED_TEST(SlotTest, forgetFreeBits)
+TYPED_TEST(SlotTest, clearFreeBits)
 {
     auto const dim = TestFixture::dim;
     using value_type = typename TestFixture::value_type;
@@ -457,7 +460,7 @@ TYPED_TEST(SlotTest, forgetFreeBits)
     for (std::size_t i=0; i<10; ++i)
         nodes[i] = i + node_type::voidbit;
     slot.put(nodes);
-    slot.forgetFreeBits();
+    slot.clearFreeBits();
     for (std::size_t i=0; i<10; ++i)
     {
         node_type node{static_cast<value_type>(i)};

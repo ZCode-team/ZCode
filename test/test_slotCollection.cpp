@@ -39,26 +39,6 @@ TYPED_TEST(SlotCollectionTest, constructor)
     EXPECT_EQ( SCcopy[0]->size(), 1 );
 }
 
-TYPED_TEST(SlotCollectionTest, clone)
-{
-    auto const dim = TestFixture::dim;
-    using value_type = typename TestFixture::value_type;
-    using node_type = Node<dim, value_type>;
-
-    slotCollection<dim, value_type> SC{2, 10, 10, 10};
-    EXPECT_EQ( SC.capacity(), 2 );
-    EXPECT_EQ( SC.size(), 1 );
-    node_type n{1};
-    SC.insert(n);
-
-    slotCollection<dim, value_type> SCclone{};
-    SCclone.clone(SC);
-    EXPECT_EQ( SCclone.capacity(), 1 );
-    EXPECT_EQ( SCclone.size(), 1 );
-    EXPECT_EQ( SCclone[0]->capacity(), SC[0]->size()*node_type::treetype );
-    EXPECT_EQ( SCclone[0]->size(), 0 );
-}
-
 TYPED_TEST(SlotCollectionTest, swap)
 {
     auto const dim = TestFixture::dim;
@@ -124,9 +104,19 @@ TYPED_TEST(SlotCollectionTest, compress)
     using slot_type = slot<dim, value_type>;
     
     slotCollection<dim, value_type> SC{2, 10, 10, 11};
-    SC.push_back(std::make_shared<slot_type>(10));
-   
+    
+    const node_type n1{1};
+    const node_type n2(2 + node_type::voidbit);
+
+    SC.insert(n1);
+    SC.insert(n2);
+
+    EXPECT_EQ( SC.nbNodes(), 2 );
+  
+    SC[0]->setMark( node_type::voidbit ); // TODO: mark update should be triggered in slotCollection.
     SC.compress();
+    
+    EXPECT_EQ( SC.nbNodes(), 1 );
 }
 
 TYPED_TEST(SlotCollectionTest, nbNodes)
@@ -246,4 +236,45 @@ TYPED_TEST(SlotCollectionTest, copyInArray)
     EXPECT_EQ( array[0], n1.hash() );
     EXPECT_EQ( array[1], n2.hash() );
     EXPECT_EQ( array[2], n3.hash() );
+}
+
+TYPED_TEST(SlotCollectionTest, clearFreeBits)
+{
+    auto const dim = TestFixture::dim;
+    using value_type = typename TestFixture::value_type;
+    using node_type = Node<dim, value_type>;
+
+    slotCollection<dim, value_type> SC{2, 10, 10, 11};
+    const node_type n1{1};
+    const node_type n2(n1.value + node_type::voidbit);
+
+    SC.insert(n2);
+
+    EXPECT_NE( (*SC[0])[0].value, n1.hash().value );
+
+    SC.clearFreeBits();
+    
+    EXPECT_EQ( (*SC[0])[0].value, n1.hash().value );
+}
+
+TYPED_TEST(SlotCollectionTest, clear)
+{
+    auto const dim = TestFixture::dim;
+    using value_type = typename TestFixture::value_type;
+    using node_type = Node<dim, value_type>;
+    using slot_type = slot<dim, value_type>;
+    
+    slotCollection<dim, value_type> SC{2, 10, 10, 11};
+    
+    const node_type n1{1}, n2{2}, n3{3};
+
+    SC.insert(n1);
+    SC.insert(n2);
+    SC.insert(n3);
+
+    EXPECT_EQ( SC.nbNodes(), 3 );
+  
+    SC.clear();
+    
+    EXPECT_EQ( SC.nbNodes(), 0 );
 }

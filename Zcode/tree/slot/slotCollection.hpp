@@ -22,17 +22,13 @@ struct slotCollection : private std::vector< std::shared_ptr< slot<dim, node_val
     using parent = std::vector<std::shared_ptr<slot_type>>;
     using parent::operator[];
     using parent::push_back;
-    using parent::insert;
-    using parent::erase;
     using parent::reserve;
-    using parent::resize;
     using parent::begin;
     using parent::end;
     using parent::cbegin;
     using parent::cend;
     using parent::size;
     using parent::capacity;
-    using parent::shrink_to_fit;
 
     using level_count_type = std::array<std::size_t, definition::nlevels+1>;
 
@@ -45,7 +41,7 @@ struct slotCollection : private std::vector< std::shared_ptr< slot<dim, node_val
     {
         inline bool operator()(const node_type n1,const node_type n2) const
         {
-            return (n1&node_type::maskpos)<(n2&node_type::maskpos);
+            return n1.pos() < n2.pos();
         }
     };
 
@@ -85,34 +81,12 @@ struct slotCollection : private std::vector< std::shared_ptr< slot<dim, node_val
         tbb::parallel_for_each(cbegin(), cend(), [&array](auto &sl){ sl->copyInArray(array.data()+sl->startRank()); });
     }
 
-    //! make a "clone", ie copy all, but not the Nodes!
-    // \parameter  C SlotCollection to be "cloned"
-    inline void clone(const slotCollection& C)
-    {
-        slot_min_size = C.slot_min_size;
-        slot_max_size = C.slot_max_size;
-
-        for ( std::size_t i = 0; i < C.size(); ++i)
-            push_back(std::make_shared<slot_type>(C[i]->s1, C[i]->s2, C[i]->size()*node_type::treetype));
-    }
-
-    /// Is a Node abscissa in the interval [s1,s2[ ?
-    /// \param s1
-    /// \param s2
-    /// \param x Node to check.
-    /// \note x must be *not* hashed.
-    inline bool inInterval(node_type s1, node_type s2, node_type x) const
-    {
-        node_type xabs = x.hash()&node_type::maskpos;
-        return (s1<=xabs) && (s2>xabs);
-    }
-
     /// Store one node using a cache.
     /// \param x        the node to be inserted.
     /// \param cache    an external Cache.
     inline void insert( node_type x, Cache<dim, node_value_type>& cache )
     {
-        const node_type xh = x.hash(), xabs = xh&node_type::maskpos;
+        const node_type xh = x.hash(), xabs = xh.pos();
         auto slot_ptr = cache.find(xabs); // Cache::find returns a shared_ptr.
 
         // std::shared_ptr convertion to bool returns true iff the shared_ptr is valid.
@@ -129,7 +103,7 @@ struct slotCollection : private std::vector< std::shared_ptr< slot<dim, node_val
     /// \param x    the node to be inserted.
     inline void insert( node_type x )
     {
-        const node_type xh = x.hash(), xabs = xh&node_type::maskpos;
+        const node_type xh = x.hash(), xabs = xh.pos();
         const auto slot_ptr = (*this)[findSlot(xabs, 0, size()-1)];
         slot_ptr->put(xh);
     }
@@ -163,15 +137,15 @@ struct slotCollection : private std::vector< std::shared_ptr< slot<dim, node_val
     //! \param x Node *not* *hashed*
     inline auto ubound(node_type x) const
     {
-        typename node_type::type maskpos = node_type::maskpos;
-        return (*this)[findSlot(x.hash()&maskpos, 0, size()-1)];
+        return (*this)[findSlot(x.hash().pos(), 0, size()-1)];
     }
+
     //! return a pointer to a slot which *possibly* contains a Node.
     //! \param x Node *hashed*
     inline auto ubound_hashed(node_type x) const
     {
-        typename node_type::type maskpos = node_type::maskpos;
-        return (*this)[findSlot(x&maskpos, 0, size()-1)];
+        assert( x.isHashed() );
+        return (*this)[findSlot(x.pos(), 0, size()-1)];
     }
 
     //! Given a Node, find his slot.
@@ -200,14 +174,14 @@ struct slotCollection : private std::vector< std::shared_ptr< slot<dim, node_val
     }
 
     /// Test if a Node exists within this slotCollection, using a cache.
-    /// \param x    Node non hashed.
-    /// \param cach cache updated.
+    /// \param x        Node non hashed.
+    /// \param[in,out] cache    Used cache.
     /// \returns the number of corresponding found node (either 0 or 1).
     /// \note we do not directly check if the Node is really non hashed, but
     ///         this is checked in "xh=hash(x)".
     inline std::size_t count(node_type x, Cache<dim, node_value_type>& cache) const
     {
-        node_type xh = x.hash(), xabs = xh&node_type::maskpos;
+        node_type xh = x.hash(), xabs = xh.pos();
         auto slot_ptr = cache.find(xabs);
 
         if( ! slot_ptr )
@@ -230,37 +204,29 @@ struct slotCollection : private std::vector< std::shared_ptr< slot<dim, node_val
     ///         this is checked in "xh=hash(x)".
     inline std::size_t count(node_type x) const
     {
-        node_type xh = x.hash(), xabs = xh&node_type::maskpos;
+        node_type xh = x.hash(), xabs = xh.pos();
         const auto slot_ptr     = (*this)[findSlot(xabs, 0, size()-1)];
         const auto node_it      = slot_ptr->find(xh);
         return node_it == slot_ptr->cend() ? 0 : 1;
     }
 
-    //! remove all free bits from all nodes.
-    inline void forgetFreeBits()
+    //! Clear all free bits from all nodes.
+    inline void clearFreeBits()
     {
-        std::for_each(begin(), end(), [](auto& st){st->forgetFreeBits();});
+        std::for_each(begin(), end(), [](auto& st){st->clearFreeBits();});
     }
 
-    //! suppress void Nodes, if any.
+    //! Suppress void Nodes, if any.
     //! update the count of leaves.
     inline void compress(node_type val=node_type::voidbit)
     {
         std::for_each(begin(), end(), [&val](auto& st){st->compress(val);});
     }
+
     //! empty all the slots.
     inline void clear()
     {
         std::for_each(begin(), end(), [](auto& st){st->empty();});
-    }
-
-    //! make a copy (in a set) of the Nodes.
-    //! \param setN  the set.
-    inline void makeExtern(SetNode& setN)
-    {
-        for (auto&st: this)
-            for(std::size_t i=0; i<st->size(); ++i)
-                setN.insert(st[i]);
     }
 
     //! finalize: compute cumulsize (to allow rank function to work), and maximum
@@ -270,13 +236,13 @@ struct slotCollection : private std::vector< std::shared_ptr< slot<dim, node_val
         std::size_t wmax=0;
 
         (*this)[0]->setStartRank(0);
-        (*this)[0]->setSlotrank(0);
+        (*this)[0]->setSlotRank(0);
         for(std::size_t i=0; i<size(); ++i)
         {
             if (i > 0)
                 (*this)[i]->setStartRank((*this)[i-1]->startRank()+wmax);
             wmax = (*this)[i]->size();
-            (*this)[i]->setSlotrank(i);
+            (*this)[i]->setSlotRank(i);
         }
     }
 
@@ -285,15 +251,16 @@ struct slotCollection : private std::vector< std::shared_ptr< slot<dim, node_val
     {
         std::size_t wmax=0;
         (*this)[0]->setStartRank(0);
-        (*this)[0]->setSlotrank(0);
+        (*this)[0]->setSlotRank(0);
         for(std::size_t i=0; i<size(); ++i)
         {
             if(i>0)
                 (*this)[i]->setStartRank((*this)[i-1]->startRank()+wmax);
             wmax = (*this)[i]->size();
-            (*this)[i]->setSlotrank(i);
+            (*this)[i]->setSlotRank(i);
         }
     }
+
     //!return maximum size of slots.
     inline std::size_t maxSlotSize() const
     {
