@@ -1,0 +1,111 @@
+\documentclass[10pt]{article}
+\usepackage[]{algorithm2e,listings}
+\usepackage[utf8]{inputenc}
+\usepackage[francais]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{url,hyperref}
+\begin{document}
+\lstset{language=C++}
+\section{Raffinements et grossissement, graduation du maillage et
+  travail par tâches.}
+On travaille dans tous les cas sur les slots d'une SlotCollection. Si
+on numérote les slots de la collection de 0 à $n$, on utilise en
+général un \texttt{parallel\_for} qui va découper récursivement
+l'intervalle $[0,n]$ en sous intervalles $[n_i^1,n_i^2]$ qui
+correspondent aux tâches. Le problème est qu'on peut avoir besoin
+d'écrire hors de l'intervalle  $[n_i^1,n_i^2]$, ce qui n'est pas
+\emph{thread safe}.
+
+On peut résoudre ce problème élégamment avec une réduction en utilisant
+un
+\href{https://software.intel.com/en-us/node/506155}{\texttt{parallel\_deterministic\_reduce}}
+(et un
+\href{https://software.intel.com/en-us/node/506154}{\texttt{parallel\_reduce}}).
+
+\subsection{Exemple}On prend l'exemple
+du raffinement; chaque tâche travaille sur son intervalle associé
+$[n_i^1,n_i^2]$.
+
+\begin{algorithm}[H]
+\For{$s\leftarrow n_i^1$ \KwTo $n_i^2$}{
+  \For{$\rm{node} \in s$}{
+    If($\rm{node}$  and refineMe)
+    {
+      \\
+      Calculer les fils de $\rm{node}$.
+      \\
+      Stocker les fils.
+      }
+}
+}
+\end{algorithm}
+Évidemment certains fils peuvent ne pas appartenir à l'intervalle
+d'abscisses couvert par les slots de  $[n_i^1,n_i^2]$, et ne peuvent
+donc pas être stockés dans les slots de  $[n_i^1,n_i^2]$.
+
+\subsection{Schéma de la classe à utiliser avec
+  \texttt{parallel\_deterministic\_reduce}}Pour traiter l'exemple
+ci-dessus on utilise une classe (c'est aussi possible avec une lambda
+fonction), adaptée aux réductions (donc, entre autres avec une
+méthode \texttt{join}).
+\begin{itemize}
+  \item Définitions, cosntructeur:
+\begin{lstlisting}
+  class Refine{
+    SlotCollection SC;
+    slot left,right;
+    Node Zmin,Zmax;
+    public:
+    Refine(SlotCollection S)
+    {
+      /*  
+      faire ce qu'il faut pour initialiser SC et uniquement SC.
+      (sans faire de copie, bien sur, SC est donc une reference ou un
+      truc dans ce genre).
+      */
+    }
+\end{lstlisting}
+\item Le travail de raffinement est effectué dans l'\texttt{operator()}:
+\begin{lstlisting}
+  void operator()( const blocked_range<int>& r )
+  {
+    Zmin= SC[r.begin()].zmin; Zmax= SC[r.end()-1].zmax;
+    /* on deroule  l'agorithme decrit plus haut */
+    /* stockage des nouveaux noeuds ?????*/
+  }
+\end{lstlisting}
+
+Dans cet opérateur, on stocke les nœuds qui débordent de l'intervalle
+de slots dans le slot \texttt{left} ou dans le slot \texttt{right} selon
+que leur z est 
+inférieur à \texttt{Zmin} ou supérieur à \texttt{Zmax}.
+Les noeuds \og normaux\fg{} sont stockés dans le bon slot de
+l'intervalle décrit par le \texttt{blocked\_range} \texttt{r}.
+
+\item Le constructeur par copie
+\begin{lstlisting}
+  Refine(Refine&, split)
+\end{lstlisting}
+  n'initialise que
+\texttt{SC}.
+
+\item Pour la méthode \texttt{join}:
+\begin{lstlisting}
+  void join(Refine& R)
+\end{lstlisting}
+on sait que les slots de \texttt{this->right} vont dans \texttt{R.SC} et que ceux de
+\texttt{R.left} vont dans \texttt{this->SC}: il suffit donc d'effectuer les
+insertions, et de faire en sorte que, à  la fin, \texttt{left} reste  inchangé, tandis que
+\texttt{this->right} est \texttt{R.right}.
+\end{itemize}
+
+\subsection{Le \texttt{parallel\_reduce}} Si on suit la documentation de
+\href{https://software.intel.com/en-us/node/506154}{\texttt{parallel\_reduce}},
+la même instantiation de la classe \texttt{Refine} peut traiter
+plusieurs \texttt{blocked\_range}, \textbf{sans appeler la méthode
+  join}.
+Il faut donc adapter la classe (ce doit être possible en testant, quand
+on entre dans \texttt{operator()} si les slots \texttt{left} et
+\texttt{right} sont vides. Dans le cas où ils ne sont pas vides, il
+faut faire les insertions qui peuvent l'être, dans \texttt{operator()}.
+\end{document}
