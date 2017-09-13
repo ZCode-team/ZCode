@@ -1,0 +1,71 @@
+\documentclass[10pt]{article}
+\usepackage[]{algorithm2e,listings}
+\usepackage[utf8]{inputenc}
+\usepackage[francais]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{url,hyperref}
+\begin{document}
+\lstset{language=C++}
+\SetKwRepeat{Do}{do}{while}%
+\SetKwRepeat{Loop}{For}{while}%
+\section{Raffinements}
+C'est itératif:\smallskip
+
+\begin{algorithm}[H]
+  \KwData{\;Tree\;\ Nodes marked ``RefineMe'' in Leaves.}
+
+  \Do{\rm{nmarked} >0}
+     {
+       1) Refine marked nodes;
+       
+       \For{slot in Leaves}
+           {
+             \For{node in slot}
+             {
+             \texttt{refine marked slots}\;
+           }
+           }
+
+           2) Make the Tree graded by refining non conform Nodes:
+
+           nmarked = \texttt{Refine2()}.
+       }{}
+\end{algorithm}
+\subsection{Les deux étapes:}
+\begin{enumerate}
+\item \texttt{refine marked slots:}
+  \begin{itemize}
+    \item Si un nœud est marqué \og RefineMe\fg{}, on crée et on
+      stocke ses fils.
+    \item Le nœud raffiné est marqué \og refined\fg{}.
+    \item On déplace les nœuds marqués \og refined\fg{} vers les non feuilles.
+  \end{itemize}
+\item nmarked = \texttt{Refine2():}
+  
+  \begin{algorithm}[H]
+    nmarked = 0\;
+    
+    \For{slot in Leaves}
+        {
+          \For{node in slot}
+              {
+                l= liste des voisins de node\;
+                \For{Vnode in l}
+                    {
+                      \If{level(Vnode) }
+                      {
+                        mark Vnode: RefineMe\;
+                        ++nmarked
+                        }{}
+                    }
+                    
+              }
+              }
+ \KwRet{nmarked}
+
+             
+  \end{algorithm}
+\end{enumerate}
+
+à suivre.
+\end{document}

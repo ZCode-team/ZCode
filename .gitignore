@@ -3,3 +3,8 @@ a.out
 build
 xml
 *.swp
+*.aux
+*.log
+*.bak
+*.out
+*.toc

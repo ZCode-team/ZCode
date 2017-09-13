@@ -1,0 +1,4 @@
+
+* Reduce : utilisation de parallel_reduce pour gérer les raffinements et
+  	   grossissements.
+
