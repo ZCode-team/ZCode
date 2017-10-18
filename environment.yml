@@ -1,7 +1,7 @@
 name: Zcode
 channels:
   - nodefaults
-  - conda-forge
-  - SylvainCorlay
+  - QuantStack
 dependencies:
-  - cling_ubuntu14
+  - xeus-cling
+  - notebook
